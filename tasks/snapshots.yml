@@ -1,0 +1,32 @@
+
+- name: copy backup scripts
+  copy: src="{{ item }}" dest=/etc/elasticsearch/ mode=754
+  with_items:
+    - es_snapshot_retention.sh
+    - es_snapshot.sh
+  tags: snapshots
+  when: "'-01' in inventory_hostname"
+
+- name: install jq for backup retention scripts
+  get_url:
+    dest: /usr/bin/jq
+    url: "{{ apt_mirror }}/tarballs/jq-linux64"
+  tags: snapshots
+  become: yes
+  when: "'-01' in inventory_hostname"
+
+- name: crontab snapshots
+  cron:
+    name: "ES snapshots"
+    hour: 4
+    job: /etc/elasticsearch/es_snapshot.sh
+  tags: snapshots
+  when: "'-01' in inventory_hostname"
+
+- name: crontab snapshot retention
+  cron:
+    name: "ES snapshot retention"
+    hour: 16
+    job: /etc/elasticsearch/es_snapshot_retention.sh
+  tags: snapshots
+  when: "'-01' in inventory_hostname"

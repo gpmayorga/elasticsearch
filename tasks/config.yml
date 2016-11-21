@@ -1,0 +1,9 @@
+
+- name: Copy Graylog elasticsearch.yml to /etc/elasticsearch/
+  template: src=elasticsearch.baseconf.j2 dest=/etc/elasticsearch/elasticsearch.yml
+
+- name: Copy default ES config to /etc/default/elasticsearch
+  template: src=defaults.j2 dest=/etc/default/elasticsearch
+
+- name: Override logging.yml
+  copy: src=logging.yml dest=/etc/elasticsearch/

@@ -1,0 +1,89 @@
+---
+
+
+## Default values for ES additional storage:
+cache_size: 30%
+es_open_files: 65535
+vg_name: es_data_vg
+mount_point: /mnt/data/
+
+
+## ES config parameters
+#########################
+elasticsearch_repo_version: 1.6
+aws_plugin_version: 2.6.0 # visit https://github.com/elastic/elasticsearch-cloud-aws
+kopf_plugin_version: 1.0 # visit https://github.com/lmenezes/elasticsearch-kopf
+cluster_name: elasticsearch-uba
+
+
+## Default graylog and uba values:
+es:
+  uba:
+    nodes: 12 ##Data nodes
+    masters: 0
+    clients: 0
+    shards: 1
+    replicas: 0
+    minimal_nodes_up: 1
+    concurrency:
+      rebalance: 1
+      recoveries:  1 ##initial recoveries of primaries after reboot
+      streams: 1 ##Streams recover shard from peer shard
+    disk:
+      high: 60 ##Move shards out of the node at
+      low: 70 ##Stop adding shards to node at
+    recovery_bytes: 60mb
+    storage:
+      vol_size: 50
+      hd_name: xvdl
+    snapshots:
+      repo: es-prod-backup
+  graylog:
+    nodes: 1
+    shards: 1
+    replicas: 0
+    minimal_nodes_up: 1
+    concurrency:
+      rebalance: 1
+      recoveries: 2 ##initial recoveries of primaries after reboot
+      streams: 2 ## Streams recover shard from peer shard
+    disk:
+      high: 80 ##Move shards out of the node at
+      low: 75 ##Stop adding shards to node at
+    recovery_bytes: 150mb
+    storage:
+      vol_size: 50
+      hd_name: xvdl
+
+additional_config_parameters: |
+  ########################### Index,shards,replicas and recovery #####################
+  # Set the number of shards (splits) of an index (5 by default):
+  #
+  index.number_of_shards: 3
+
+  # Set the number of replicas (additional copies) of an index (1 by default):
+
+  index:
+    number_of_replicas: 1
+    refresh_interval: 30s
+  gateway:
+    recover_after_time: 5m
+  ## Recover after a disaster when enough active_nodes are up or after 5 minutes.
+
+  ################################## Other performance config #########################
+  # Only one instance of ES running per server.
+  node.max_local_storage_nodes: 1
+
+  #### Cluster restart parameters
+  ####(determines cluster restart and recovery time )
+  cluster.info.update.interval: "1m"
+  cluster.routing.allocation:
+    cluster_concurrent_rebalance: 2
+    node_concurrent_recoveries: 1
+    disk:
+      watermark:
+        high: 90
+        low: 85
+  indices.recovery:
+    concurrent_streams: 2
+    recovery.max_bytes_per_sec: 20mb

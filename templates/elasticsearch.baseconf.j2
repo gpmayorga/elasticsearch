@@ -1,0 +1,79 @@
+{% if inventory_hostname in groups.es_aio %}
+
+cluster:
+  name: cloudlock_es
+node:
+  name: events
+script:
+  disable_dynamic: true
+network:
+  host: 127.0.0.1
+
+{% else %}
+
+
+################################### Cluster ###################################
+
+# Cluster name identifies your cluster for auto-discovery.
+cluster.name: {{ ec2_tag_Component }}
+node.name: {{ ec2_tag_Name | default(inventory_hostname) }}
+
+#################################### Node #####################################
+# Node names are generated dynamically on startup, so you're relieved
+# from configuring them manually. You can tie this node to a specific name:
+#
+
+{% if 'data' in ec2_tag_es_role %}
+node.data: true
+index.load_fixed_bitset_filters_eagerly: false
+{% else %}
+node.data: false
+{%-  endif %}
+
+{% if 'master' in ec2_tag_es_role %}
+node.master: true
+{% else %}
+node.master: false
+{%-  endif %}
+
+{% if 'client' in ec2_tag_es_role %}
+http.enabled: true
+{%- else %}
+
+http.enabled: true
+network.bind_host: _local_
+network.publish_host: 0.0.0.0
+{%  endif %}
+
+#################################### Plugin ###################################
+
+# If a plugin listed here is not installed for current node, the node will not start.
+#
+plugin.mandatory: cloud-aws
+
+#################################### Paths ####################################
+# Path to directory where to store index data allocated for this node.
+path.data: {{ mount_point }}
+
+################################### Memory ####################################
+
+# Set this property to true to lock the memory:
+#
+bootstrap.mlockall: true
+
+################################## Discovery ##################################
+discovery:
+  zen.ping.multicast.enabled: false
+  type: ec2
+  ec2.tag.Component: {{ ec2_tag_Component }}
+cloud.aws.region: {{ ec2_region }}
+
+################################## Network ######################################
+
+network:
+  bind_host: 0.0.0.0
+  publish_host: _ec2:privateIpv4_
+transport.tcp.port: 9300
+
+{{ additional_config_parameters }}
+{%-  endif %}

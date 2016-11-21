@@ -1,0 +1,60 @@
+---
+
+- fail: msg="The AWS tag es_role is not defined for this node and it's necessary for this deployment"
+  when: ec2_tag_es_role is not defined and {{ inventory_hostname not in groups.es_aio }}
+
+- include: install.yml
+  tags: install
+
+- include: config.yml
+  tags: es_conf
+
+##
+- name: Make elasticsearch start on boot
+  command: update-rc.d elasticsearch defaults
+  tags: es_conf
+
+- name: Check elasticsearch file descriptors limit
+  shell: ulimit -n
+  become_user: elasticsearch
+  args:
+    executable: /bin/bash
+  register: ulimit
+  tags: ulimit
+
+- name: Increase elasticsearch ulimit
+  lineinfile: dest=/etc/security/limits.conf line="elasticsearch {{ item }} nofile {{ es_open_files }}" insertbefore="# End of file" state=present
+  with_items:
+    - hard
+    - soft
+  when: ulimit.stdout != es_open_files
+  tags: ulimit
+
+- name: Apply ulimits to elasticsearch user
+  lineinfile: dest=/etc/pam.d/su line="session    required   pam_limits.so" regexp="# session    required   pam_limits.so"
+  when: ulimit.stdout == '1024'
+  tags: ulimit
+
+
+- name: Setup permissions for data folder
+  file: path={{ mount_point }} owner=elasticsearch group=elasticsearch state=directory
+
+- name: Restart ES
+  service: name=elasticsearch state={{ item }}
+  with_items:
+    - stopped
+    - started
+  become: yes
+  notify: links
+  tags:
+    - es_conf
+    - es_restart
+
+- include: snapshots.yml
+  when: ansible_environment is defined and (("'-01' in inventory_hostname")
+         and (ansible_environment == 'prod') and
+         ( ec2_tag_Component  == "elasticsearch-uba" ))
+
+
+
+

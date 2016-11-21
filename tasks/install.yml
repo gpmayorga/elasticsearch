@@ -1,0 +1,64 @@
+---
+
+- name: install pip
+  apt: name=python-pip state=latest
+  tags:
+    - skip_ansible_lint # Skipping due to `no using latest` rule
+
+- name: install httplib2
+  command: pip install httplib2
+
+
+- name: Add apt key for elasticseach
+  apt_key: url=https://packages.elasticsearch.org/GPG-KEY-elasticsearch state=present
+
+- name: retrieve ES version
+  uri: url=http://localhost:9200 return_content=yes
+  register: result
+  ignore_errors: yes
+  tags: debug
+
+- debug:
+    msg: "installed_version={{ result.json.version.number }} vs desired_version={{elasticsearch_repo_version}}"
+  when: (result|success)
+
+- include: prepare_upgrade.yml
+  when: (result|success) and (result.json.version.number.find("{{ elasticsearch_repo_version }}") == -1 )
+
+- debug: msg="Installing version {{ elasticsearch_repo_version }} of ES"
+
+- name: Add elasticsearch repository
+  apt_repository:  repo="deb http://packages.elasticsearch.org/elasticsearch/{{ elasticsearch_repo_version }}/debian stable main" state=present
+  tags:
+    - skip_ansible_lint # Skipping due to `no using latest` rule
+
+- name: Install ES
+  apt: name=elasticsearch state=latest update_cache=yes cache_valid_time=300
+  tags:
+    - skip_ansible_lint # Skipping due to `no using latest` rule
+
+- name: Install startup script
+  copy: src=elasticsearch dest=/etc/init.d/elasticsearch
+
+- name: check if aws plugin is installed
+  stat: path=/usr/share/elasticsearch/plugins/{{ item }}
+  with_items:
+    - cloud-aws
+    - kopf
+  register: plugin
+  tags: plugins
+
+- debug: msg="Installing AWS {{ aws_plugin_version }} version"
+
+- name: Install AWS plugin for ES
+  command: /usr/share/elasticsearch/bin/plugin install elasticsearch/elasticsearch-cloud-aws/{{ aws_plugin_version }}
+  args:
+    creates: "/usr/share/elasticsearch/plugins/cloud-aws"
+  when: plugin.results[0].stat.exists == False
+  tags: plugins
+
+- name: Install kopf monitoring in clients
+  command: /usr/share/elasticsearch/bin/plugin install lmenezes/elasticsearch-kopf/{{ kopf_plugin_version }}
+  when: ("'client' in ec2_tag_es_role") and (plugin.results[1].stat.exists == False)
+  tags: plugins
+

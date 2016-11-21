@@ -1,0 +1,14 @@
+---
+- name: restart elasticsearch
+  service: name=elasticsearch state=restarted
+
+- name: restart server
+  command: shutdown -r now "Ansible updates triggered"
+  async: 0
+  poll: 0
+  ignore_errors: true
+
+- name: links
+  script: links.sh
+  become: yes
+
