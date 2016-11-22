@@ -1,10 +1,13 @@
 ---
 
-- fail: msg="The AWS tag es_role is not defined for this node and it's necessary for this deployment"
-  when: ec2_tag_es_role is not defined and {{ inventory_hostname not in groups.es_aio }}
+- fail: msg="The var es_role is not defined for this node and it's necessary for this deployment"
+  when: es_role is not defined and {{ inventory_hostname not in groups.es_aio }}
 
 - include: install.yml
   tags: install
+
+- include: install_plugins.yml
+  when: es_plugins|length > 0
 
 - include: config.yml
   tags: es_conf
@@ -20,7 +23,7 @@
   args:
     executable: /bin/bash
   register: ulimit
-  tags: ulimit
+  tags: es_conf
 
 - name: Increase elasticsearch ulimit
   lineinfile: dest=/etc/security/limits.conf line="elasticsearch {{ item }} nofile {{ es_open_files }}" insertbefore="# End of file" state=present
@@ -28,12 +31,12 @@
     - hard
     - soft
   when: ulimit.stdout != es_open_files
-  tags: ulimit
+  tags: es_conf
 
 - name: Apply ulimits to elasticsearch user
   lineinfile: dest=/etc/pam.d/su line="session    required   pam_limits.so" regexp="# session    required   pam_limits.so"
   when: ulimit.stdout == '1024'
-  tags: ulimit
+  tags: es_conf
 
 
 - name: Setup permissions for data folder
@@ -48,13 +51,8 @@
   notify: links
   tags:
     - es_conf
-    - es_restart
 
 - include: snapshots.yml
   when: ansible_environment is defined and (("'-01' in inventory_hostname")
          and (ansible_environment == 'prod') and
          ( ec2_tag_Component  == "elasticsearch-uba" ))
-
-
-
-

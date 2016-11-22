@@ -1,9 +1,9 @@
 {% if inventory_hostname in groups.es_aio %}
 
 cluster:
-  name: cloudlock_es
+  name: es_clustername
 node:
-  name: events
+  name: {{ ansible_hostname }}
 script:
   disable_dynamic: true
 network:
@@ -15,28 +15,28 @@ network:
 ################################### Cluster ###################################
 
 # Cluster name identifies your cluster for auto-discovery.
-cluster.name: {{ ec2_tag_Component }}
-node.name: {{ ec2_tag_Name | default(inventory_hostname) }}
+cluster.name: {{ es_clustername}}
+node.name: {{ ec2_tag_Name | default(ansible_hostname) }}
 
 #################################### Node #####################################
 # Node names are generated dynamically on startup, so you're relieved
 # from configuring them manually. You can tie this node to a specific name:
 #
 
-{% if 'data' in ec2_tag_es_role %}
+{% if 'data' in es_role %}
 node.data: true
 index.load_fixed_bitset_filters_eagerly: false
 {% else %}
 node.data: false
 {%-  endif %}
 
-{% if 'master' in ec2_tag_es_role %}
+{% if 'master' in es_role %}
 node.master: true
 {% else %}
 node.master: false
 {%-  endif %}
 
-{% if 'client' in ec2_tag_es_role %}
+{% if 'client' in es_role %}
 http.enabled: true
 {%- else %}
 
@@ -49,7 +49,7 @@ network.publish_host: 0.0.0.0
 
 # If a plugin listed here is not installed for current node, the node will not start.
 #
-plugin.mandatory: cloud-aws
+##plugin.mandatory: cloud-aws
 
 #################################### Paths ####################################
 # Path to directory where to store index data allocated for this node.
@@ -62,17 +62,24 @@ path.data: {{ mount_point }}
 bootstrap.mlockall: true
 
 ################################## Discovery ##################################
+{% if es_discovery == 'aws' %}
 discovery:
   zen.ping.multicast.enabled: false
   type: ec2
-  ec2.tag.Component: {{ ec2_tag_Component }}
+  ec2.tag.Component: {{ ec_aws_discoverytag }}
 cloud.aws.region: {{ ec2_region }}
+{%- elif es_discovery == 'dynamic' %}
+discovery.zen.ping.multicast.enabled: true
+{%- elif es_discovery == 'static' %}
+discovery.zen.ping.multicast.enabled: false
+discovery.zen.ping.unicast.hosts: [ {% for host in ansible_play_batch -%} "{{ hostvars[host]['ansible_default_ipv4'] }}" {-% if not loop.last -%}, {% endif -%} ]
+{%  endif %}
 
 ################################## Network ######################################
 
 network:
   bind_host: 0.0.0.0
-  publish_host: _ec2:privateIpv4_
+  publish_host: {{ ansible_default_ipv4 }}
 transport.tcp.port: 9300
 
 {{ additional_config_parameters }}
